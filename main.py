@@ -1,20 +1,41 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import bcrypt
 
 app = FastAPI()
 
-@app.get("/")
-def root():
-    return {"message": "API running"}
+#stores users
+users = {}
 
-from fastapi import HTTPException
+# Request models
+class UserRegister(BaseModel):
+    username: str
+    password: str
 
-fake_user = {
-    "username": "admin",
-    "password": "1234"
-}
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
+# Register endpoint
+@app.post("/register")
+def register(user: UserRegister):
+    if user.username in users:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
+    users[user.username] = hashed
+
+    return {"message": "user created"}
+
+# Login endpoint
 @app.post("/login")
-def login(username: str, password: str):
-    if username == fake_user["username"] and password == fake_user["password"]:
-        return {"message": "login success"}
-    raise HTTPException(status_code=401, detail="invalid credentials")
+def login(user: UserLogin):
+    if user.username not in users:
+        raise HTTPException(status_code=400, detail="invalid credentials")
+
+    stored_hash = users[user.username]
+
+    if not bcrypt.checkpw(user.password.encode(), stored_hash):
+        raise HTTPException(status_code=401, detail="invalid credentials")
+
+    return {"message": "login success"}
